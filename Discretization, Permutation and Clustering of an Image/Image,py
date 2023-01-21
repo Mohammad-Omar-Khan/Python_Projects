@@ -1,0 +1,376 @@
+# Importing libraries
+
+import pandas as pd
+import numpy as np
+from PIL import Image as im
+import math
+import cv2 as oc
+from tkinter import *
+from tkinter import filedialog as fd
+from PIL import Image, ImageTk
+import networkx as nx
+import matplotlib.pyplot as plt
+import io as StringIO
+
+FileName = "No File Selected!"
+Threshold = 0
+data = 0
+row = 0
+column = 0
+startThreshold = 0
+Shuffled = 0
+clusterCount = 0
+
+img1 = im.fromarray((np.zeros((150, 150)) * 255).astype(np.uint8))
+img1.save("BW.bmp")
+img1.save("RGB.bmp")
+
+# Function to display the computed image in a pop-up image
+def displayColorCoded(array):
+    oc.imwrite("RGB.bmp", array)
+    img3 = ImageTk.PhotoImage(Image.open("RGB.bmp"))
+    ImageLabel2.configure(image=img3)
+    ImageLabel2.image = img3
+    ImageLabel2.place(x=10, y=400)
+
+
+# Function to save a black nd white image from given array
+def displayBW(array):
+    img = im.fromarray((array * 255).astype(np.uint8))
+    img.save("BW.bmp")
+    img2 = ImageTk.PhotoImage(Image.open("BW.bmp"))
+    ImageLabel.configure(image=img2)
+    ImageLabel.image = img2
+    ImageLabel.place(x=10, y=200)
+
+
+# Function to calculate the Correlation Matrix
+def correlation(data, row, column):
+    correlationMatrix = np.ndarray((row, row))
+    for i in range(row):  # X Vector
+        for j in range(row):  # Y vector
+            sumX = 0
+            sumY = 0
+            sumX2 = 0
+            sumY2 = 0
+            sumXY = 0
+            # Calculating the Pearson Coefficent or every row
+            for k in range(column):
+                sumXY += data[i][k] * data[j][k]
+                sumX += data[i][k]
+                sumX2 += data[i][k] ** 2
+                sumY += data[j][k]
+                sumY2 += data[j][k] ** 2
+            # math.sqrt() to calculate the square root
+            correlationMatrix[i][j] = ((column * sumXY) - (sumX * sumY)) / (
+                (math.sqrt((column * sumX2) - (sumX**2)))
+                * math.sqrt((column * sumY2) - (sumY**2))
+            )
+    return correlationMatrix
+
+
+# Function to Discritize a file by calculating correlation matrix
+def discretization():
+    # skiprows to skip the first 3 rows that contain row and coloumn size
+    with open(FileName, "r") as f:
+        temp = f.readlines()
+    global row
+    row = int(temp[0])
+    global column
+    column = int(temp[1])
+
+    global data
+    s = open(FileName).read().replace(",", "\t")
+    data = np.loadtxt(StringIO.StringIO(s), skiprows=3, dtype="float")
+    data = np.reshape(data, (row, column))
+
+    # Calling the Correlation Matrix function
+    correlationMatrix = correlation(data, row, column)
+
+    # Calculating the mean of every coloumn to calculate the Discroitized Matrix
+    RMean = correlationMatrix.mean(axis=1)
+    discretizedCorrelation = np.ndarray((row, row))
+
+    # Assigning a value of 1 to the values of the correlation
+    # matrix that are larger than the mean of their corresponding column
+    for i in range(row):  # ROW
+        for j in range(i, row):  # COLUMN
+            if correlationMatrix[i][j] < RMean[i]:
+                discretizedCorrelation[i][j] = 1
+                discretizedCorrelation[j][i] = 1
+
+    ThresholdLabel.place_forget()
+    TempThreshold.place_forget()
+    ThresholdButton.place_forget()
+
+    # Calling the function to Display Black and White Image
+    displayBW(discretizedCorrelation)
+
+    # Creating a 2D array with each element containing
+    # an array of length 3 to correspond to values of BGR
+    ColorCoded = np.ndarray((row, row, 3), np.uint8)
+
+    # Assigning a shade of green according to
+    # the values in the Correlation Matrix
+    for i in range(row):
+        for j in range(row):
+            ColorCoded[i][j][::] = (0, (correlationMatrix[i][j] * 230), 0)
+
+    # Calling the Display color Coded Function
+    displayColorCoded(ColorCoded)
+
+    PermutationButton.place(x=10, y=70)
+    QuitButton.place(x=10, y=160)
+
+
+# Function to ramdomize/permutate the data and recover it
+def permutation():
+    # Reading the file
+    with open(FileName, "r") as f:
+        temp = f.readlines()
+    row = int(temp[0])
+    column = int(temp[1])
+
+    s = open(FileName).read().replace(",", "\t")
+    # skiprows to skip the first 3 rows that contain row and coloumn size
+    data = np.loadtxt(StringIO.StringIO(s), skiprows=3, dtype="float")
+    data = np.reshape(data, (row, column))
+
+    # Shuffles the data randomly
+    np.random.shuffle(data)
+
+    # Calling the function to calculate the Correlation Matrix and saving it in R
+    correlationPermuted = correlation(data, row, column)
+
+    global Shuffled
+    Shuffled = np.array(correlationPermuted)
+
+    # Calculating the mean of the rows
+    RMean = correlationPermuted.mean(axis=1)
+    discretizedPermuted = np.ndarray((row, row))
+
+    # Assigning a value of 1 to the values of the correlation
+    # matrix that are larger than the mean of their corresponding coloumn
+    for i in range(row):  # ROW
+        for j in range(i, row):  # COLUMN
+            if correlationPermuted[i][j] < RMean[i]:
+                discretizedPermuted[i][j] = 1
+                discretizedPermuted[j][i] = 1
+
+    ThresholdLabel.place_forget()
+    TempThreshold.place_forget()
+    ThresholdButton.place_forget()
+
+    displayBW(discretizedPermuted)
+
+    # Creating a 2D array with each element containing
+    # an array of length 3 to correspond to values of BGR
+    ColorCoded = np.ndarray((row, row, 3), np.uint8)
+
+    # Assigning a shade of green according to
+    # the values in the Correlation Matrix
+    for i in range(row):
+        for j in range(row):
+            ColorCoded[i][j][::] = (0, (correlationPermuted[i][j] * 255), 0)
+
+    displayColorCoded(ColorCoded)
+
+    RecoveryButton.place(x=10, y=100)
+    GraphButton.place(x=10, y=130)
+    QuitButton.place(x=10, y=160)
+
+
+# Function to recover the permuted matrix
+def recovery():
+    # Calculating the signature of the permuted data
+    signatureMatrix = data.sum(axis=1) * data.mean(axis=1)
+    np.reshape(signatureMatrix, (row, 1))
+
+    # Changing the shape of the Signature to turn it into a 150 lengthed array
+    temp = signatureMatrix.reshape(row, 1)
+
+    # Concatinating the signature array to the permuted data,
+    # every signature will be next to the values from which it was calculated from
+    columnAdd = np.concatenate([data, temp], axis=1)
+
+    # Sorting the permuted data according to the signature value
+    sort = columnAdd[columnAdd[:, column].argsort()]
+    recoveredMatrix = np.delete(sort, 4, 1)
+
+    # Calling the function to calculate the Correlation Matrix
+    correlationRecovered = correlation(recoveredMatrix, row, column)
+
+    # Calculating the mean of the arrays
+    RMean = correlationRecovered.mean(axis=1)
+    # Creating a 2D array of zeros
+    boolCorrelationRecovered = np.zeros((row, row))
+
+    # Assigning a value of 1 to the values of the correlation
+    # matrix that are larger than the mean of their corresponding column
+    for i in range(row):  # ROW
+        for j in range(i, row):  # COLUMN
+            if correlationRecovered[i][j] < RMean[i]:
+                boolCorrelationRecovered[i][j] = 1
+                boolCorrelationRecovered[j][i] = 1
+
+    ThresholdLabel.place_forget()
+    TempThreshold.place_forget()
+    ThresholdButton.place_forget()
+
+    displayBW(boolCorrelationRecovered)
+
+    maxValues = np.max(correlationRecovered)
+
+    # Creating a 2D array with each element containing
+    # an array of length 3 to correspond to values of BGR
+    ColorCoded = np.ndarray((row, row, 3), np.uint8)
+
+    # Assigning a shade of green according to
+    # the values in the Correlation Matrix
+    for i in range(row):
+        for j in range(row):
+            ColorCoded[i][j][::] = (0, (correlationRecovered[i][j] * 255), 0)
+
+    displayColorCoded(ColorCoded)
+
+
+# Function to extract clusters
+def graph():
+    global startThreshold
+    global Shuffled
+    graphArray = np.array(Shuffled)
+    global clusterCount
+    clusterCount = 1
+    # Removing the values that have a value less than the threshold value
+    for i in range(row):
+        for j in range(i, row):
+            if graphArray[i][j] < startThreshold:
+                graphArray[i][j] = 0
+                graphArray[j][i] = 0
+            # Making the diagonal 0 to counter every node making a neighbor with itself
+            if i == j:
+                graphArray[i][j] = 0
+
+    while True:
+        if np.all((graphArray == 0)):
+            break
+
+        # Calculating the weight of the nodes, which is the sum of its neighbors
+        nodesWeight = graphArray.sum(axis=0)
+
+        # Calculating the highest weight node
+        maxIndex = 0
+        for a in range(row):
+            if nodesWeight[a] > maxIndex:
+                maxIndex = a
+
+        # Getting the neighbors of the highest weight's node
+        neighbors = np.array(graphArray[maxIndex]).reshape(row)
+
+        # Counting the neighbors
+        count = 0
+        for l in range(row):
+            if neighbors[l] != 0:
+                count += 1
+
+        # Adding the neighbors to a graph
+        g = nx.Graph()
+        for x in range(row):
+            if neighbors[x] != 0:
+                g.add_edge(1, neighbors[x])
+        nx.draw(g)
+        # Saving the graph
+        plt.savefig("Cluster" + str(clusterCount) + ".png")
+        # Showing the graph
+        plt.show()
+        plt.clf()
+
+        # Clustering by making the row and column of the particular neighbors equal to 0
+        for k in range(row):
+            if graphArray[maxIndex][k] > 0 or graphArray[k][maxIndex]:
+                for l in range(row):
+                    graphArray[l][k] = 0
+                    graphArray[k][l] = 0
+
+            graphArray[maxIndex][k] = 0
+            graphArray[k][maxIndex] = 0
+
+        # Keeping the count of clusters
+        clusterCount += 1
+
+
+root = Tk()
+root.title("CS221-B Semester Project")
+root.geometry("600x600")
+root.resizable(False, False)
+
+
+# Provides a window to select a file
+def SelectFile():
+    global FileName
+    FileName = fd.askopenfilename()
+    FileLabel.config(
+        text="Selected File: " + FileName.split("/")[len(FileName.split("/")) - 1]
+    )
+
+    FileButton.config(command=DISABLED)
+    DiscretizationButton.place(x=10, y=40)
+    QuitButton.place(x=10, y=160)
+
+
+# Gets threshold input from user and calls the graph function
+def GetThreshold():
+    global startThreshold
+    startThreshold = float(TempThreshold.get())
+    ThresholdButton.place_forget()
+    graph()
+
+
+# Handles the display for threshold input
+def ThresholdInput():
+    ImageLabel.place_forget()
+    ImageLabel2.place_forget()
+
+    ThresholdLabel.place(x=10, y=200)
+    TempThreshold.place(x=175, y=200)
+    ThresholdButton.place(x=350, y=195)
+
+
+# Defines and places the images to display
+Img = oc.imread("BW.bmp")
+blue, green, red = oc.split(Img)
+Img = oc.merge((red, green, blue))
+Img2 = Image.fromarray(Img)
+ImgTK = ImageTk.PhotoImage(image=Img2)
+Img4 = oc.imread("RGB.bmp")
+blue, green, red = oc.split(Img4)
+Img4 = oc.merge((red, green, blue))
+Img3 = Image.fromarray(Img4)
+ImgTk2 = ImageTk.PhotoImage(image=Img3)
+
+# Defines and places the buttons and labels for user input
+FileButton = Button(root, text="Open a File", command=SelectFile)
+FileButton.place(x=10, y=10)
+
+FileLabel = Label(root, text=FileName)
+FileLabel.place(x=120, y=13.5)
+
+# Assigns the functions to button presses
+DiscretizationButton = Button(root, text="Discretization", command=discretization)
+PermutationButton = Button(root, text="Permutation", command=permutation)
+RecoveryButton = Button(root, text="Recovery", command=recovery)
+GraphButton = Button(root, text="Graph", command=ThresholdInput)
+
+QuitButton = Button(root, text="Exit", command=root.quit)
+QuitButton.place(x=10, y=40)
+
+ThresholdLabel = Label(root, text="Enter threshold of graph: ")
+TempThreshold = Entry(root)
+ThresholdButton = Button(root, text="Enter", command=GetThreshold)
+
+
+ImageLabel = Label(root, image=ImgTK)
+ImageLabel2 = Label(root, image=ImgTK)
+
+# Runs the main-loop of the program
+root.mainloop()
